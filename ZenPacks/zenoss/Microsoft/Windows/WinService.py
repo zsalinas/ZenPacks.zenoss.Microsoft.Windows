@@ -21,30 +21,14 @@ UNMONITORED = 0
 MONITORED = 1
 EXCLUDED = 2
 
+from . import schema
 
-class WinService(BaseWinService):
+class WinService(schema.WinService):
     '''
     Model class for Windows Service.
     '''
 
-    description = None
-    usermonitor = False
-
-    _properties = BaseWinService._properties + (
-        {'id': 'description', 'label': 'Description', 'type': 'string'},
-        {'id': 'usermonitor', 'label': 'Manually Selected Monitor State',
-            'type': 'boolean'},
-    )
-
     security = ClassSecurityInfo()
-
-    def getClassObject(self):
-        """
-        Return the ServiceClass for this service.
-        """
-        if hasattr(self, 'serviceclass') and 'serviceclass' in self.getRelationshipNames():
-            return self.serviceclass()
-        return None
 
     def getRRDTemplateName(self):
         try:
@@ -155,4 +139,4 @@ class WinService(BaseWinService):
         return tmpl
 
 
-InitializeClass(WinService)
+# InitializeClass(WinService)
