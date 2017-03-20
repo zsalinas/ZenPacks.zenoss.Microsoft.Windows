@@ -1,6 +1,6 @@
 ##############################################################################
 #
-# Copyright (C) Zenoss, Inc. 2013-2016, all rights reserved.
+# Copyright (C) Zenoss, Inc. 2013-2017, all rights reserved.
 #
 # This content is made available according to terms specified in
 # License.zenoss under the directory where your Zenoss product is installed.
@@ -197,8 +197,18 @@ class ComplexLongRunningCommand(object):
         Create initial set of commands according to the number supplied.
         '''
         self.num_commands = num_commands
-        return [create_long_running_command(createConnectionInfo(self.dsconf))
-                for i in xrange(num_commands)]
+        commands = []
+        try:
+            commands = [
+                create_long_running_command(createConnectionInfo(self.dsconf))
+                    for i in xrange(num_commands)
+                ]
+        except Exception as e:
+            LOG.error(
+                "%s - %s: %s",
+                self.dsconf.device, self.__class__.__name__, e)
+
+        return commands
 
     @defer.inlineCallbacks
     def start(self, command_lines):
@@ -336,9 +346,14 @@ class PerfmonDataSourcePlugin(PythonDataSourcePlugin):
 
         Called each collection interval.
         '''
-        yield self.start()
+        data = None
+        try:
+            yield self.start()
+        except Exception:
+            pass
+        else:
+            data = yield self.get_data()
 
-        data = yield self.get_data()
         defer.returnValue(data)
 
     @defer.inlineCallbacks
@@ -363,7 +378,8 @@ class PerfmonDataSourcePlugin(PythonDataSourcePlugin):
             self._errorMsgCheck(e.message)
 
             self.state = PluginStates.STOPPED
-            defer.returnValue(None)
+
+            raise
         else:
             self._generateClearAuthEvents()
 
@@ -471,12 +487,13 @@ class PerfmonDataSourcePlugin(PythonDataSourcePlugin):
             except Exception as err:
                 LOG.error('Receive error {0}'.format(err))
 
-        self.receive_deferreds = add_timeout(
-            defer.DeferredList(deferreds, consumeErrors=True),
-            OPERATION_TIMEOUT + 5)
+        if deferreds:
+            self.receive_deferreds = add_timeout(
+                defer.DeferredList(deferreds, consumeErrors=True),
+                OPERATION_TIMEOUT + 5)
 
-        self.receive_deferreds.addCallbacks(
-            self.onReceive, self.onReceiveFail)
+            self.receive_deferreds.addCallbacks(
+                self.onReceive, self.onReceiveFail)
 
     def _parse_deferred_result(self, result):
         '''
